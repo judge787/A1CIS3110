@@ -1,0 +1,11 @@
+CC = gcc
+CFLAGS = -std=c11 -Wall -g
+
+A1: A1.o
+    $(CC) $(CFLAGS) A1.o -o A1
+
+A1.o: A1.c A1header.h
+    $(CC) $(CFLAGS) -c A1.c -g -o -o A1.o
+
+clean:
+    rm -f *.o *.hist A1
