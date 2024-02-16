@@ -1,5 +1,4 @@
 #define _POSIX_C_SOURCE 200809L
-
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,10 +6,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define MAX_CHILDREN 10
 #define ALPHABET_SIZE 26
-#define BUFFER_SIZE (ALPHABET_SIZE * sizeof(int)) //
-
+#define BUFFER_SIZE (ALPHABET_SIZE * sizeof(int))
 
 // Structure for histogram data
 typedef struct {
@@ -18,9 +15,9 @@ typedef struct {
 } Histogram;
 
 // Global variable declarations
-pid_t childPIDs[MAX_CHILDREN]; // Track child PIDs
+pid_t *childPIDs; // Track child PIDs dynamically
 int nChildren = 0; // Number of child processes
-int pipes[MAX_CHILDREN][2]; // Pipes for communication
+int **pipes; // Pipes for communication dynamically allocated
 
 void computeHistogram(const char *filename, Histogram *hist);
 void writeHistogramToFile(const char *filename, const Histogram *hist);
@@ -67,14 +64,21 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    // Insert the new feature here
     if (argc < 2) {
         fprintf(stderr, "Error: No input files provided.\n");
         exit(EXIT_FAILURE);
     }
 
+    // Allocate memory based on the number of input files
+    nChildren = argc - 1;
+    childPIDs = malloc(nChildren * sizeof(pid_t));
+    pipes = malloc(nChildren * sizeof(int*));
+    for (int i = 0; i < nChildren; i++) {
+        pipes[i] = malloc(2 * sizeof(int));
+    }
+
     for (int i = 1; i < argc; i++) {
-        if (pipe(pipes[nChildren]) == -1) {
+        if (pipe(pipes[i-1]) == -1) {
             perror("pipe");
             exit(EXIT_FAILURE);
         }
@@ -85,11 +89,11 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         } else if (pid > 0) {
             // Parent process
-            close(pipes[nChildren][1]); // Close the write end of the pipe
-            childPIDs[nChildren++] = pid;
+            close(pipes[i-1][1]); // Close the write end of the pipe
+            childPIDs[i-1] = pid;
         } else {
             // Child process
-            close(pipes[nChildren][0]); // Close the read end of the pipe
+            close(pipes[i-1][0]); // Close the read end of the pipe
 
             Histogram hist;
             memset(&hist, 0, sizeof(Histogram));
@@ -99,11 +103,11 @@ int main(int argc, char *argv[]) {
                 exit(1);
             } else {
                 computeHistogram(argv[i], &hist);
-                if (write(pipes[nChildren][1], &hist, BUFFER_SIZE) == -1) {
+                if (write(pipes[i-1][1], &hist, BUFFER_SIZE) == -1) {
                     perror("write");
                     exit(EXIT_FAILURE);
                 }
-                close(pipes[nChildren][1]); // Close the write end after sending data
+                close(pipes[i-1][1]); // Close the write end after sending data
                 exit(EXIT_SUCCESS);
             }
         }
@@ -114,8 +118,16 @@ int main(int argc, char *argv[]) {
         pause(); // Sleep until a signal is received
     }
 
+    // Free allocated memory
+    for (int i = 0; i < nChildren; i++) {
+        free(pipes[i]);
+    }
+    free(pipes);
+    free(childPIDs);
+
     return 0;
 }
+
 
 void computeHistogram(const char *filename, Histogram *hist) {
     FILE *file = fopen(filename, "r");
@@ -144,7 +156,5 @@ void writeHistogramToFile(const char *filename, const Histogram *hist) {
     }
     fclose(file);
 }
-
-
 
 
