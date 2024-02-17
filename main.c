@@ -23,12 +23,44 @@ int **pipes; // Pipes for communication dynamically allocated
 void computeHistogram(const char *filename, Histogram *hist);
 void writeHistogramToFile(const char *filename, const Histogram *hist);
 
+// void sigchld_handler(int sig) {
+//     int status;
+//     pid_t pid;
+//     Histogram hist;
+
+//     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+//         for (int i = 0; i < nChildren; i++) {
+//             if (pid == childPIDs[i]) {
+//                 // Read the histogram data from the corresponding pipe
+//                 if (read(pipes[i][0], &hist, BUFFER_SIZE) == -1) {
+//                     perror("read");
+//                     exit(EXIT_FAILURE);
+//                 }
+
+//                 // Close the read end of the pipe
+//                 close(pipes[i][0]);
+
+//                 // Write histogram to file
+//                 char filename[256];
+//                 snprintf(filename, sizeof(filename), "file%ld.hist", (long)pid);
+//                 writeHistogramToFile(filename, &hist);
+
+//                 // Remove PID from tracking array (simplified; actual implementation may need to shift array elements)
+//                 childPIDs[i] = -1;
+//                 break;
+//             }
+//         }
+//         nChildren--;
+//     }
+// }
+
 void sigchld_handler(int sig) {
     int status;
     pid_t pid;
     Histogram hist;
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        printf("SIGCHLD caught, child PID: %d\n", pid);
         for (int i = 0; i < nChildren; i++) {
             if (pid == childPIDs[i]) {
                 // Read the histogram data from the corresponding pipe
@@ -53,6 +85,7 @@ void sigchld_handler(int sig) {
         nChildren--;
     }
 }
+
 
 int main(int argc, char *argv[]) {
     struct sigaction sa;
